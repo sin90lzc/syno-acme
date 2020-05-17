@@ -10,52 +10,52 @@ PKG_CRT_BASE_PATH="/usr/local/etc/certificate"
 #CRT_BASE_PATH="/Users/carl/Downloads/certificate"
 ACME_BIN_PATH=${BASE_ROOT}/acme.sh
 TEMP_PATH=${BASE_ROOT}/temp
-CRT_PATH_NAME=`cat ${CRT_BASE_PATH}/_archive/DEFAULT`
+CRT_PATH_NAME=`sudo cat ${CRT_BASE_PATH}/_archive/DEFAULT`
 CRT_PATH=${CRT_BASE_PATH}/_archive/${CRT_PATH_NAME}
 
 backupCrt () {
   echo 'begin backupCrt'
   BACKUP_PATH=${BASE_ROOT}/backup/${DATE_TIME}
   mkdir -p ${BACKUP_PATH}
-  cp -r ${CRT_BASE_PATH} ${BACKUP_PATH}
-  cp -r ${PKG_CRT_BASE_PATH} ${BACKUP_PATH}/package_cert
+  sudo cp -r ${CRT_BASE_PATH} ${BACKUP_PATH}
+  sudo cp -r ${PKG_CRT_BASE_PATH} ${BACKUP_PATH}/package_cert
   echo ${BACKUP_PATH} > ${BASE_ROOT}/backup/latest
   echo 'done backupCrt'
   return 0
 }
 
-installAcme () {
-  echo 'begin installAcme'
-  mkdir -p ${TEMP_PATH}
-  cd ${TEMP_PATH}
-  echo 'begin downloading acme.sh tool...'
-  ACME_SH_ADDRESS=`curl -L https://cdn.jsdelivr.net/gh/andyzhshg/syno-acme@master/acme.sh.address`
-  SRC_TAR_NAME=acme.sh.tar.gz
-  curl -L -o ${SRC_TAR_NAME} ${ACME_SH_ADDRESS}
-  SRC_NAME=`tar -tzf ${SRC_TAR_NAME} | head -1 | cut -f1 -d"/"`
-  tar zxvf ${SRC_TAR_NAME}
-  echo 'begin installing acme.sh tool...'
-  cd ${SRC_NAME}
-  ./acme.sh --install --nocron --home ${ACME_BIN_PATH}
-  echo 'done installAcme'
-  rm -rf ${TEMP_PATH}
-  return 0
-}
+#installAcme () {
+#  echo 'begin installAcme'
+#  mkdir -p ${TEMP_PATH}
+#  cd ${TEMP_PATH}
+#  echo 'begin downloading acme.sh tool...'
+#  ACME_SH_ADDRESS=`curl -L https://cdn.jsdelivr.net/gh/andyzhshg/syno-acme@master/acme.sh.address`
+#  SRC_TAR_NAME=acme.sh.tar.gz
+#  curl -L -o ${SRC_TAR_NAME} ${ACME_SH_ADDRESS}
+#  SRC_NAME=`tar -tzf ${SRC_TAR_NAME} | head -1 | cut -f1 -d"/"`
+#  tar zxvf ${SRC_TAR_NAME}
+#  echo 'begin installing acme.sh tool...'
+#  cd ${SRC_NAME}
+#  ./acme.sh --install --nocron --home ${ACME_BIN_PATH}
+#  echo 'done installAcme'
+#  rm -rf ${TEMP_PATH}
+#  return 0
+#}
 
 generateCrt () {
   echo 'begin generateCrt'
   cd ${BASE_ROOT}
   source config
   echo 'begin updating default cert by acme.sh tool'
-  source ${ACME_BIN_PATH}/acme.sh.env
-  ${ACME_BIN_PATH}/acme.sh --force --log --issue --dns ${DNS} --dnssleep ${DNS_SLEEP} -d "${DOMAIN}" -d "*.${DOMAIN}"
-  ${ACME_BIN_PATH}/acme.sh --force --installcert -d ${DOMAIN} -d *.${DOMAIN} \
-    --certpath ${CRT_PATH}/cert.pem \
-    --key-file ${CRT_PATH}/privkey.pem \
-    --fullchain-file ${CRT_PATH}/fullchain.pem
+  ${ACME_BIN_PATH} --renew -d "${DOMAIN}" --force
 
-  if [ -s "${CRT_PATH}/cert.pem" ]; then
+  if [ -s "${GEN_CERT_PATH}" ]; then
     echo 'done generateCrt'
+    sudo /bin/cp -af ${GEN_CERT_PATH} ${CRT_PATH}/cert.pem
+    sudo /bin/cp -af ${GEN_KEY_PATH} ${CRT_PATH}/privkey.pem
+    sudo /bin/cp -af ${GEN_FULLCHAIN_PATH} ${CRT_PATH}/fullchain.pem
+	sudo /bin/chown -R root:root ${CRT_PATH}
+	sudo /bin/chmod 400 ${CRT_PATH}/*
     return 0
   else
     echo '[ERR] fail to generateCrt'
@@ -68,7 +68,7 @@ generateCrt () {
 updateService () {
   echo 'begin updateService'
   echo 'cp cert path to des'
-  /bin/python2 ${BASE_ROOT}/crt_cp.py ${CRT_PATH_NAME}
+  sudo /bin/python2 ${BASE_ROOT}/crt_cp.py ${CRT_PATH_NAME}
   echo 'done updateService'
 }
 
@@ -76,11 +76,11 @@ reloadWebService () {
   echo 'begin reloadWebService'
   echo 'reloading new cert...'
   /usr/syno/etc/rc.sysv/nginx.sh reload
-  echo 'relading Apache 2.2'
-  stop pkg-apache22
-  start pkg-apache22
-  reload pkg-apache22
-  echo 'done reloadWebService'  
+  #echo 'relading Apache 2.2'
+  #stop pkg-apache22
+  #start pkg-apache22
+  #reload pkg-apache22
+  #echo 'done reloadWebService'  
 }
 
 revertCrt () {
@@ -104,7 +104,7 @@ revertCrt () {
 updateCrt () {
   echo '------ begin updateCrt ------'
   backupCrt
-  installAcme
+  #installAcme
   generateCrt
   updateService
   reloadWebService
